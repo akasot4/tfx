@@ -132,14 +132,13 @@ def trainer_fn(trainer_fn_args, schema):
 
 ## Generic Trainer
 
-To better support native Keras, we proposed a generic trainer which allows any
-TensorFlow training loop in TFX Trainer in addition to tf.estimator. For
-details, please see the
+Generic trainer allows any TensorFlow training loop in TFX Trainer in addition
+to tf.estimator, e.g., Keras support. For details, please see the
 [RFC for generic trainer](https://github.com/tensorflow/community/blob/master/rfcs/20200117-tfx-generic-trainer.md).
 
-### Configuring a Trainer Component with a generic executor
+### Configuring Trainer Component with GenericExecutor
 
-Typical pipeline Python DSL code looks like this:
+Typical pipeline Python DSL code for generic Trainer would look like below:
 
 ```python
 from tfx.components import Trainer
@@ -160,44 +159,20 @@ trainer = Trainer(
 
 Trainer invokes a training module, which is specified in the `module_file`
 parameter. Instead of `trainer_fn`, a `run_fn` is required in the module file if
-`GenericExecutor` is specified. A typical training module looks like this:
+`GenericExecutor` is specified.
+
+If Transform component is not used in the pipeline, Trainer would take examples
+from ExampleGen directly:
 
 ```python
-# TFX Trainer will call this function.
-def run_fn(fn_args: TrainerFnArgs):
-  """Train the model based on given args.
-
-  Args:
-    fn_args: Holds args used to train the model as name/value pairs.
-  """
-  tf_transform_output = tft.TFTransformOutput(fn_args.transform_output)
-
-  train_dataset = _input_fn(fn_args.train_files, tf_transform_output, 40)
-  eval_dataset = _input_fn(fn_args.eval_files, tf_transform_output, 40)
-
-  # To use distribution strategy, create an appropriate tf.distribute.Strategy
-  # and move the creation and compiling of Keras model inside `strategy.scope`.
-  #
-  # For example, replace `model = _build_keras_model()` with:
-  #   mirrored_strategy = tf.distribute.MirroredStrategy()
-  #   with mirrored_strategy.scope():
-  #     model = _build_keras_model()
-  model = _build_keras_model()
-
-  model.fit(
-      train_dataset,
-      steps_per_epoch=fn_args.train_steps,
-      validation_data=eval_dataset,
-      validation_steps=fn_args.eval_steps)
-
-  signatures = {
-      'serving_default':
-          _get_serve_tf_examples_fn(model,
-                                    tf_transform_output).get_concrete_function(
-                                        tf.TensorSpec(
-                                            shape=[None],
-                                            dtype=tf.string,
-                                            name='examples')),
-  }
-  model.save(fn_args.serving_model_dir, save_format='tf', signatures=signatures)
+trainer = Trainer(
+    module_file=module_file,
+    custom_executor_spec=executor_spec.ExecutorClassSpec(GenericExecutor),
+    examples=example_gen.outputs['examples'],
+    schema=infer_schema.outputs['schema'],
+    train_args=trainer_pb2.TrainArgs(num_steps=10000),
+    eval_args=trainer_pb2.EvalArgs(num_steps=5000))
 ```
+
+[Here](https://github.com/tensorflow/tfx/blob/master/tfx/examples/iris/iris_utils_native_keras.py)
+is an example module file with `run_fn`.
