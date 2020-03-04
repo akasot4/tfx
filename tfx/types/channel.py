@@ -58,16 +58,17 @@ class Channel(json_utils.Jsonable):
       self,
       type: Optional[Type[Artifact]] = None,  # pylint: disable=redefined-builtin
       artifacts: Optional[Iterable[Artifact]] = None,
-      producer_info: Optional[ChannelProducerInfo] = None):
+      producer_component_id: Optional[Text] = None,
+      output_key: Optional[Text] = None):
     """Initialization of Channel.
 
     Args:
       type: Subclass of Artifact that represents the type of this Channel.
       artifacts: (Optional) A collection of artifacts as the values that can be
         read from the Channel. This is used to construct a static Channel.
-      producer_info: (Optional) Holds the producer component info of the
-        channel. This will be consumed by downstream component to assemble MLMD
-        query to fetch the desired artifacts.
+      producer_component_id: (Optional) Producer component id of the Channel.
+      output_key: (Optional) The output key when producer component produces
+        the artifacts in this Channel.
     """
     if not (inspect.isclass(type) and issubclass(type, Artifact)):  # pytype: disable=wrong-arg-types
       raise ValueError(
@@ -77,8 +78,9 @@ class Channel(json_utils.Jsonable):
     self.type = type
     self._artifacts = artifacts or []
     self._validate_type()
-    # This will be populated during compilation time
-    self.producer_info = producer_info
+    # The following fields will be populated during compilation time.
+    self.producer_component_id = producer_component_id
+    self.output_key = output_key
 
   @property
   def type_name(self):
@@ -92,6 +94,7 @@ class Channel(json_utils.Jsonable):
   def _validate_type(self) -> None:
     for artifact in self._artifacts:
       if artifact.type_name != self.type_name:
+        print('lalala')
         raise ValueError(
             "Artifacts provided do not match Channel's artifact type {}".format(
                 self.type_name))
